@@ -1,3 +1,4 @@
+/*
 // Copyright 2017 JanusGraph Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,10 +51,19 @@ public class RemoteGraphApp extends JanusGraphApp {
     protected Client client;
     protected Configuration conf;
 
-    /**
+
+    */
+/*
+    并没有在初始化的时候传入文件名
+    初始化的时候传入的null，还有初始化的时候，所有继承的方法只是设置了一下filename变量
+     *//*
+
+    */
+/**
      * Constructs a graph app using the given properties.
      * @param fileName location of the properties file
-     */
+     *//*
+
     public RemoteGraphApp(final String fileName) {
         super(fileName);
         // the server auto-commits per request, so the application code doesn't
@@ -61,10 +71,27 @@ public class RemoteGraphApp extends JanusGraphApp {
         this.supportsTransactions = false;
     }
 
+    */
+/*
+    分为几个步骤：
+     * Run the entire application:
+     * 1. Open and initialize the graph
+     *      这个部分修改了打开的配置文件
+     *      设置了 Cluster 和 Client
+     *      获得 graph 和 g
+     *      仅仅在打开图的时候这个地方做了修改！
+     * 2. Define the schema
+     * 3. Build the graph
+     * 4. Run traversal queries to get data from the graph
+     * 5. Make updates to the graph
+     * 6. Close the graph
+     *//*
+
     @Override
     public GraphTraversalSource openGraph() throws ConfigurationException {
         LOGGER.info("opening graph");
-        conf = new PropertiesConfiguration(propFileName);
+//        conf = new PropertiesConfiguration(propFileName);
+        conf = new PropertiesConfiguration("E:\\ideaCode\\janusGraph\\janusgraph-examples\\example-hbase\\conf\\jgex-remote.properties");
 
         // using the remote driver for schema
         try {
@@ -156,6 +183,13 @@ public class RemoteGraphApp extends JanusGraphApp {
         g.V(b.of(OUT_V, cerberus)).as("a").V(b.of(IN_V, tartarus)).addE(b.of(LABEL, "lives")).from("a").next();
     }
 
+    */
+/**
+     * 6. Close the graph
+     *     使用的是本地的方法来关闭图
+     * @throws Exception
+     *//*
+
     @Override
     public void closeGraph() throws Exception {
         LOGGER.info("closing graph");
@@ -176,6 +210,16 @@ public class RemoteGraphApp extends JanusGraphApp {
         }
     }
 
+    */
+/**
+     * 2. Define the schema
+     *         获取模式使用的是自己的方法
+     * 3. Build the graph
+     * 4. Run traversal queries to get data from the graph
+     * 5. Make updates to the graph
+     * 6. Close the graph
+     *//*
+
     @Override
     public void createSchema() {
         LOGGER.info("creating schema");
@@ -194,3 +238,4 @@ public class RemoteGraphApp extends JanusGraphApp {
         app.runApp();
     }
 }
+*/

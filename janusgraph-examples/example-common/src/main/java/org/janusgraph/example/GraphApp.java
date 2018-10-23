@@ -21,11 +21,15 @@ import java.util.Optional;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.tinkerpop.gremlin.process.traversal.Bindings;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
+import org.janusgraph.core.JanusGraph;
+import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.attribute.Geoshape;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,11 +39,13 @@ public class GraphApp {
 
     protected String propFileName;
     protected Configuration conf;
-    protected Graph graph;
     protected GraphTraversalSource g;
+    protected JanusGraph graph;
     protected boolean supportsTransactions;
     protected boolean supportsSchema;
     protected boolean supportsGeoshape;
+
+    protected static Bindings b = Bindings.instance();
 
     /**
      * Constructs a graph app using the given properties.
@@ -56,8 +62,17 @@ public class GraphApp {
     public GraphTraversalSource openGraph() throws ConfigurationException {
         LOGGER.info("opening graph");
         conf = new PropertiesConfiguration(propFileName);
-        graph = GraphFactory.open(conf);
+        graph = JanusGraphFactory.open(conf);
         g = graph.traversal();
+//---------------------------- test ---------------------------------
+//        conf = new PropertiesConfiguration("E:\\ideaCode\\janusGraph\\janusgraph-examples\\example-common\\conf\\jgex-inmemory.properties");
+//        graph = GraphFactory.open(conf);
+//        try {
+//            g = graph.traversal().withRemote("E:\\ideaCode\\janusGraph\\janusgraph-examples\\example-hbase\\conf\\jgex-remote.properties");
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//--------------------------------------------------------------------
         return g;
     }
 
@@ -80,6 +95,9 @@ public class GraphApp {
     }
 
     /**
+     * 定义在了父类之中
+     */
+    /**
      * Drops the graph instance. The default implementation does nothing.
      */
     public void dropGraph() throws Exception {
@@ -92,13 +110,16 @@ public class GraphApp {
     }
 
     /**
+     * 设置supportsTransactions 标志位来判断是否支持事务！
+     */
+    /**
      * Adds the vertices, edges, and properties to the graph.
      */
     public void createElements() {
         try {
-            // naive check if the graph was previously created
+            // naive check if the graph was previously created 检查先前是不是已经创建了
             if (g.V().has("name", "saturn").hasNext()) {
-                if (supportsTransactions) {
+                if (supportsTransactions) { //这个设置是否支持事务！
                     g.tx().rollback();
                 }
                 return;
@@ -175,6 +196,14 @@ public class GraphApp {
         return fa;
     }
 
+
+    /**
+     * 4. Run traversal queries to get data from the graph
+     *      这里使用的是读操作/查询操作
+     *      tryNext, valueMap
+     * 5. Make updates to the graph
+     * 6. Close the graph
+     */
     /**
      * Runs some traversal queries to get data from the graph.
      */
@@ -188,13 +217,14 @@ public class GraphApp {
 
             // look up vertex by name can use a composite index in JanusGraph
             final Optional<Map<Object, Object>> v = g.V().has("name", "jupiter").valueMap(true).tryNext();
-            if (v.isPresent()) {
+            if (v.isPresent()) { //检查是否还在
                 LOGGER.info(v.get().toString());
             } else {
                 LOGGER.warn("jupiter not found");
             }
 
             // look up an incident edge
+            //使用valueMap true来获取 tryNext(好像返回的都是迭代器结构)结尾
             final Optional<Map<Object, Object>> edge = g.V().has("name", "hercules").outE("battled").as("e").inV()
                     .has("name", "hydra").select("e").valueMap(true).tryNext();
             if (edge.isPresent()) {
@@ -204,6 +234,7 @@ public class GraphApp {
             }
 
             // numerical range query can use a mixed index in JanusGraph
+            // 可以使用P来查看支持的方法！
             final List<Object> list = g.V().has("age", P.gte(5000)).values("age").toList();
             LOGGER.info(list.toString());
 
@@ -230,6 +261,11 @@ public class GraphApp {
     }
 
     /**
+     * 5. Make updates to the graph
+     *      直接查询寻到节点设置property就可以！
+     * 6. Close the graph
+     */
+    /**
      * Makes an update to the existing graph structure. Does not create any
      * new vertices or edges.
      */
@@ -239,8 +275,12 @@ public class GraphApp {
                 return;
             }
             LOGGER.info("updating elements");
+            //更新了一把时间戳
             final long ts = System.currentTimeMillis();
+            final Optional<Map<Object, Object>> v = g.V().has("name", "jupiter").valueMap(true).tryNext();
             g.V().has("name", "jupiter").property("ts", ts).iterate();
+
+            //如果支持索引的话
             if (supportsTransactions) {
                 g.tx().commit();
             }
@@ -253,6 +293,9 @@ public class GraphApp {
     }
 
     /**
+     * 查询到，然后drop
+     */
+    /**
      * Deletes elements from the graph structure. When a vertex is deleted,
      * its incident edges are also deleted.
      */
@@ -260,6 +303,9 @@ public class GraphApp {
         try {
             if (g == null) {
                 return;
+            }
+            if (supportsTransactions) {
+                g.tx().commit();
             }
             LOGGER.info("deleting elements");
             // note that this will succeed whether or not pluto exists

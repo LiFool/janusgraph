@@ -15,9 +15,14 @@
 package org.janusgraph.example;
 
 import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.tinkerpop.gremlin.driver.Client;
+import org.apache.tinkerpop.gremlin.driver.Cluster;
+import org.apache.tinkerpop.gremlin.process.traversal.Bindings;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.Multiplicity;
@@ -30,8 +35,8 @@ import org.slf4j.LoggerFactory;
 public class JanusGraphApp extends GraphApp {
     private static final Logger LOGGER = LoggerFactory.getLogger(JanusGraphApp.class);
 
-    protected static final String APP_NAME = "jgex";
-    protected static final String MIXED_INDEX_CONFIG_NAME = "jgex";
+    protected static final String APP_NAME = "search";
+    protected static final String MIXED_INDEX_CONFIG_NAME = "search";
 
     // Storage backends
 
@@ -50,6 +55,9 @@ public class JanusGraphApp extends GraphApp {
     protected boolean useMixedIndex;
     protected String mixedIndexConfigName;
 
+
+
+
     /**
      * Constructs a graph app using the given properties.
      * @param fileName location of the properties file
@@ -65,11 +73,30 @@ public class JanusGraphApp extends GraphApp {
 
     @Override
     public GraphTraversalSource openGraph() throws ConfigurationException {
-        super.openGraph();
+//        super.openGraph();
+        conf = new PropertiesConfiguration("E:\\ideaCode\\janusGraph\\janusgraph-examples\\example-common\\conf\\jgex-inmemory.properties");
+        graph = (JanusGraph)JanusGraphFactory.open(conf);
+        try {
+            g = ((JanusGraph)graph).traversal().withRemote("E:\\ideaCode\\janusGraph\\janusgraph-examples\\example-hbase\\conf\\jgex-remote.properties");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         useMixedIndex = useMixedIndex && conf.containsKey("index." + mixedIndexConfigName + ".backend");
         return g;
     }
 
+    /**
+     * 1.graph 转化为 StandardJanusGraph
+     *   获取一个JanusManager
+     *   把Graph的名字从JanusManager里面删掉
+     * 2.关闭图 graph.close
+     * 3.获取configuration，从Configuration中获取backend，调用cleanStorage
+     * 4.IOUtils.closeQuietly(backend); 这个定义在finally里面！
+     *
+     * 所以这个并不会删除掉图的数据！
+     * @throws Exception
+     */
     @Override
     public void dropGraph() throws Exception {
         if (graph != null) {
@@ -77,9 +104,17 @@ public class JanusGraphApp extends GraphApp {
         }
     }
 
+    /**
+     * 3. Build the graph
+     *      建立一张图，使用的是父类的方法
+     * 4. Run traversal queries to get data from the graph
+     * 5. Make updates to the graph
+     * 6. Close the graph
+     */
     @Override
     public void createElements() {
         super.createElements();
+        //使用MIXIndex，会产生一定的刷新延迟！
         if (useMixedIndex) {
             try {
                 // mixed indexes typically have a delayed refresh interval
@@ -181,6 +216,18 @@ public class JanusGraphApp extends GraphApp {
      * connection to create the schema on the graph instance running on the
      * server.
      */
+    /**
+     * 2. Define the schema
+     *      提交的是一个字符串
+     *      这个会返回一个string representation of the schema generation code 字符串类型的schema生成码
+     *      所有命令是按照字符串提交
+     *
+     *      这边有设置了index
+     * 3. Build the graph
+     * 4. Run traversal queries to get data from the graph
+     * 5. Make updates to the graph
+     * 6. Close the graph
+     */
     protected String createSchemaRequest() {
         final StringBuilder s = new StringBuilder();
 
@@ -214,6 +261,8 @@ public class JanusGraphApp extends GraphApp {
         s.append("management.makeEdgeLabel(\"brother\").make(); ");
         s.append("management.makeEdgeLabel(\"battled\").make(); ");
 
+
+        //索引的名字在这里被引用！
         // composite indexes
         s.append("management.buildIndex(\"nameIndex\", Vertex.class).addKey(name).buildCompositeIndex(); ");
 
@@ -233,6 +282,7 @@ public class JanusGraphApp extends GraphApp {
     public static void main(String[] args) throws Exception {
         final String fileName = (args != null && args.length > 0) ? args[0] : null;
         final boolean drop = (args != null && args.length > 1) ? "drop".equalsIgnoreCase(args[1]) : false;
+
         final JanusGraphApp app = new JanusGraphApp(fileName);
         if (drop) {
             app.openGraph();
